@@ -20,7 +20,7 @@ void MessageQueue<T>::send(T &&msg)
 {
     std::lock_guard<std::mutex> slck(_mtx);
     _queue.clear();
-    _queue.push_back(std::move(msg));
+    _queue.emplace_back(std::move(msg));
     _cond.notify_one();
    
 }
@@ -59,25 +59,25 @@ void TrafficLight::simulate()
 // virtual function which is executed in a thread
 void TrafficLight::cycleThroughPhases()
 {
-    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-    std::chrono::high_resolution_clock::time_point t2;
-    int phase_duration = 4000;
-    int duration;
-    while (true)
+    std::random_device rd;
+    std::mt19937 eng(rd());
+    std::uniform_int_distribution<> distr(4000, 6000);
+    int phase_duration = distr(eng);
+    std::chrono::high_resolution_clock::time_point lastUpdate = std::chrono::high_resolution_clock::now();
+    long timeSinceLastUpdate; 
+    TrafficLightPhase message; 
+  while (true)
     {
-        t2 = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::milliseconds>( t2 - t1 ).count();
-        if (duration >= phase_duration)
-        {  
-            t1 = t2;
-            srand(time(0));
-            phase_duration = rand() % 2000 + 4000;
-            std::this_thread::sleep_for (std::chrono::milliseconds (phase_duration));
-            _currentPhase = _currentPhase == TrafficLightPhase::red ? TrafficLightPhase::green : TrafficLightPhase::red;
-            TrafficLightPhase message = _currentPhase;
-            _msgQueue.send(std::move(message));  
-        }
         std::this_thread::sleep_for (std::chrono::milliseconds (1));
+        timeSinceLastUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - lastUpdate).count();
+        if (timeSinceLastUpdate >= phase_duration)
+        {  
+            _currentPhase = _currentPhase == TrafficLightPhase::red ? TrafficLightPhase::green : TrafficLightPhase::red;
+            message = _currentPhase;
+            _msgQueue.send(std::move(message));
+            lastUpdate = std::chrono::high_resolution_clock::now();
+            phase_duration = distr(eng);
+        }
     }
 }
 
